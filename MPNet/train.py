@@ -62,7 +62,7 @@ def main(args):
 			bt=to_var(bt)
 			bo = mlp(bi)
 			loss = criterion(bo,bt)
-			avg_loss=avg_loss+loss.data[0]
+			avg_loss=avg_loss+loss.data.item()
 			loss.backward()
 			optimizer.step()
 		print ("--average loss:")

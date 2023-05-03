@@ -356,7 +356,7 @@ def main(args):
 									for p in range(0,path_lengths[i][j]):
 										print (paths[i][j][p][1])
 								else:
-									print "path found, dont worry"	
+									print ("path found, dont worry")	
 
 				
 		tot.append(et)					

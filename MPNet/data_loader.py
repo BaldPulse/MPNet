@@ -3,7 +3,6 @@ import torch.utils.data as data
 import os
 import pickle
 import numpy as np
-import nltk
 from PIL import Image
 import os.path
 import random
@@ -18,6 +17,15 @@ class Encoder(nn.Module):
 		super(Encoder, self).__init__()
 		self.encoder = nn.Sequential(nn.Linear(2800, 512),nn.PReLU(),nn.Linear(512, 256),nn.PReLU(),nn.Linear(256, 128),nn.PReLU(),nn.Linear(128, 28))
 			
+	def forward(self, x):
+		x = self.encoder(x)
+		return x
+
+class Encoder_JM(nn.Module):
+	def __init__(self):
+		super(Encoder_JM, self).__init__()
+		self.encoder = nn.Sequential(nn.Linear(6000, 512),nn.PReLU(),nn.Linear(512, 256),nn.PReLU(),nn.Linear(256, 128),nn.PReLU(),nn.Linear(128, 28))
+	
 	def forward(self, x):
 		x = self.encoder(x)
 		return x
@@ -165,4 +173,74 @@ def load_test_dataset(N=100,NP=200, s=0,sp=4000):
 	return 	obc,obs_rep,paths,path_lengths
 	
 
+def load_dataset_JM(N=1000, NP=10):
+	import open3d as o3d
+	Q = Encoder_JM()
+	Q.load_state_dict(torch.load('../models/cae_encoder.pkl'))
+	if torch.cuda.is_available():
+		Q.cuda()
+	
+	obs_rep=np.zeros((N,28),dtype=np.float32)
+	for i in range(0,N):
+		#load obstacle point cloud
+		temp=o3d.io.read_point_cloud('../trajectory_data/obs_cloud/map_'+str(i+1)+'.ply')
+		temp=np.asarray(temp.points)
+		# downsample to 2000 points, choose randomly
+		temp_ind = np.random.choice(temp.shape[0], 2000, replace=False)
+		temp = temp[temp_ind]
+		obstacles=np.zeros((1,6000),dtype=np.float32)
+		obstacles[0]=temp.flatten()
+		inp=torch.from_numpy(obstacles)
+		inp=Variable(inp).cuda()
+		output=Q(inp)
+		output=output.data.cpu()
+		obs_rep[i]=output.numpy()
 
+
+
+	import pickle
+	## calculating length of the longest trajectory
+	max_length=0
+	path_lengths=np.zeros((N,NP),dtype=np.int8)
+	for i in range(0,N):
+		for j in range(0,NP):
+			fname='../trajectory_data/env_{:06d}/path_{:d}.p'.format(i+1,j)
+			if os.path.isfile(fname):
+				path=pickle.load(open(fname,'rb'), encoding='latin1')['path']
+				path_lengths[i][j]=path.shape[0]	
+				if path.shape[0]> max_length:
+					max_length=path.shape[0]
+	print(max_length)
+			
+
+	paths=np.zeros((N,NP,max_length,7), dtype=np.float32)   ## padded paths
+
+	for i in range(0,N):
+		for j in range(0,NP):
+			fname='../trajectory_data/env_{:06d}/path_{:d}.p'.format(i+1,j)
+			if os.path.isfile(fname):
+				path=pickle.load(open(fname,'rb'), encoding='latin1')['path']
+				for k in range(0,len(path)):
+					paths[i][j][k]=path[k]
+	
+					
+
+	dataset=[]
+	targets=[]
+	for i in range(0,N):
+		for j in range(0,NP):
+			if path_lengths[i][j]>0:				
+				for m in range(0, path_lengths[i][j]-1):
+					data=np.zeros(42,dtype=np.float32)
+					for k in range(0,28):
+						data[k]=obs_rep[i][k]
+					data[28:35]=paths[i][j][m][0:7]
+					data[35:42]=paths[i][j][path_lengths[i][j]-1][0:7]
+						
+					targets.append(paths[i][j][m+1])
+					dataset.append(data)
+			
+	data=list(zip(dataset,targets))
+	random.shuffle(data)	
+	dataset,targets=list(zip(*data))
+	return 	np.asarray(dataset),np.asarray(targets) 

@@ -1,6 +1,8 @@
 models
 MPNet/models
 dataset/
+dataset2/
+trajectory_data/
 __pycache__
 MPNet/__pycache__
 MPNet/AE/__pycache__

@@ -4,8 +4,8 @@ import torch.nn as nn
 import numpy as np
 import os
 import pickle
-from data_loader import load_dataset_JM
-from model import MLP 
+from data_loader import load_dataset_EndtoEnd_JM
+from model import EMLP 
 from torch.autograd import Variable 
 import math
 
@@ -14,16 +14,18 @@ def to_var(x, volatile=False):
 		x = x.cuda()
 	return Variable(x, volatile=volatile)
 
-def get_input(i,data,targets,bs):
+def get_input(i,PC, PCid, Context, Targets, bs):
 
-	if i+bs<len(data):
-		bi=data[i:i+bs]
-		bt=targets[i:i+bs]	
+	if i+bs<len(PCid):
+		bpc=PC[PCid[i:i+bs]]
+		bc=Context[i:i+bs]
+		bt=Targets[i:i+bs]
 	else:
-		bi=data[i:]
-		bt=targets[i:]
+		bpc=PC[PCid[i:]]
+		bc=Context[i:]
+		bt=Targets[i:]
 		
-	return torch.from_numpy(bi),torch.from_numpy(bt)
+	return torch.from_numpy(bpc),torch.from_numpy(bc),torch.from_numpy(bt)
 
 
     
@@ -34,53 +36,55 @@ def main(args):
     
     
 	# Build data loader
-	dataset,targets= load_dataset_JM() 
+	PC, PCid, Context, Targets= load_dataset_EndtoEnd_JM(N=900)
 	
 	# Build the models
-	mlp = MLP(args.input_size, args.output_size)
+	emlp = EMLP(args.input_size, args.output_size)
     
 	if torch.cuda.is_available():
-		mlp.cuda()
+		emlp.cuda()
 
 	# Loss and Optimizer
 	criterion = nn.MSELoss()
-	optimizer = torch.optim.Adagrad(mlp.parameters()) 
+	optimizer = torch.optim.Adagrad(emlp.parameters()) 
     
 	import time
 	# Train the Models
 	total_loss=[]
-	print (len(dataset))
-	print (len(targets))
+	print (len(PC))
+	print (len(Context))
+	print (len(Targets))
 	sm=100 # start saving models after 100 epochs
 	last_epoch_time = time.time()
 	for epoch in range(args.num_epochs):
 		print ("epoch" + str(epoch))
 		avg_loss=0
-		for i in range (0,len(dataset),args.batch_size):
+		for i in range (0,len(PCid),args.batch_size):
 			# Forward, Backward and Optimize
-			mlp.zero_grad()			
-			bi,bt= get_input(i,dataset,targets,args.batch_size)
-			bi=to_var(bi)
-			bt=to_var(bt)
-			bo = mlp(bi)
+			emlp.zero_grad()			
+			bpc_np, bc_np, bt_np = get_input(i,PC, PCid, Context, Targets, args.batch_size)
+			bpc = to_var(bpc_np).to(torch.float32)
+			bc = to_var(bc_np).to(torch.float32)
+			bt = to_var(bt_np).to(torch.float32)
+			bo = emlp(bpc, bc)
 			loss = criterion(bo,bt)
 			avg_loss=avg_loss+loss.data.item()
 			loss.backward()
 			optimizer.step()
 		print ("--average loss:")
-		print (avg_loss/(len(dataset)/args.batch_size))
-		total_loss.append(avg_loss/(len(dataset)/args.batch_size))
+		print (avg_loss/(len(PC)/args.batch_size))
+		total_loss.append(avg_loss/(len(PC)/args.batch_size))
 		print ("--time last epoch:" + str(time.time()-last_epoch_time))
 		print("estimated time left: {:.2f} hours".format((args.num_epochs-epoch)*(time.time()-last_epoch_time)/3600))
 		last_epoch_time = time.time()
 		# Save the models
 		if epoch==sm:
-			model_path='mlp_100_4000_PReLU_ae_dd'+str(sm)+'.pkl'
-			torch.save(mlp.state_dict(),os.path.join(args.model_path,model_path))
+			model_path='emlp_100_4000_PReLU_ae_dd'+str(sm)+'.pkl'
+			torch.save(emlp.state_dict(),os.path.join(args.model_path,model_path))
 			sm=sm+50 # save model after every 50 epochs from 100 epoch ownwards
 	torch.save(total_loss,'total_loss.dat')
-	model_path='mlp_100_4000_PReLU_ae_dd_final.pkl'
-	torch.save(mlp.state_dict(),os.path.join(args.model_path,model_path))
+	model_path='emlp_100_4000_PReLU_ae_dd_final.pkl'
+	torch.save(emlp.state_dict(),os.path.join(args.model_path,model_path))
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--model_path', type=str, default='./models/',help='path for saving trained models')

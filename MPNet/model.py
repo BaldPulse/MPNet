@@ -28,4 +28,28 @@ class MLP(nn.Module):
 		out = self.fc(x)
 		return out
 
+class EMLP(nn.Module):
+	def __init__(self, input_size, output_size):
+		super(EMLP, self).__init__()
+		self.encoder = nn.Sequential(nn.Linear(6000, 512),nn.PReLU(),nn.Linear(512, 256),nn.PReLU(),nn.Linear(256, 128),nn.PReLU(),nn.Linear(128, 28))
+		self.fc = nn.Sequential(
+		nn.Linear(input_size, 1280),nn.PReLU(),nn.Dropout(),
+		nn.Linear(1280, 1024),nn.PReLU(),nn.Dropout(),
+		nn.Linear(1024, 896),nn.PReLU(),nn.Dropout(),
+		nn.Linear(896, 768),nn.PReLU(),nn.Dropout(),
+		nn.Linear(768, 512),nn.PReLU(),nn.Dropout(),
+		nn.Linear(512, 384),nn.PReLU(),nn.Dropout(),
+		nn.Linear(384, 256),nn.PReLU(), nn.Dropout(),
+		nn.Linear(256, 256),nn.PReLU(), nn.Dropout(),
+		nn.Linear(256, 128),nn.PReLU(), nn.Dropout(),
+		nn.Linear(128, 64),nn.PReLU(), nn.Dropout(),
+		nn.Linear(64, 32),nn.PReLU(),
+		nn.Linear(32, output_size))
+		
+		
+	def forward(self, pc, x):
+		pce = self.encoder(pc)
+		x = torch.cat((pce, x), 1)
+		out = self.fc(x)
+		return out
  

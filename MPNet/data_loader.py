@@ -173,6 +173,64 @@ def load_test_dataset(N=100,NP=200, s=0,sp=4000):
 	return 	obc,obs_rep,paths,path_lengths
 	
 
+def load_dataset_EndtoEnd_JM(N=1000, NP=10):
+	import open3d as o3d
+	
+	import pickle
+
+	## calculating length of the longest trajectory
+	max_length=0
+	path_lengths=np.zeros((N,NP),dtype=np.int8)
+	for i in range(0,N):
+		for j in range(0,NP):
+			fname='../trajectory_data/env_{:06d}/path_{:d}.p'.format(i+1,j)
+			if os.path.isfile(fname):
+				path=pickle.load(open(fname,'rb'), encoding='latin1')['path']
+				path_lengths[i][j]=path.shape[0]	
+				if path.shape[0]> max_length:
+					max_length=path.shape[0]
+	paths=np.zeros((N,NP,max_length,7), dtype=np.float32)   ## padded paths
+
+	normalization_data = pickle.load(open('../trajectory_data/env_1000_range.pkl','rb'))
+	ranges = normalization_data['range']
+	origins = normalization_data['mid']
+
+	PC = []   ## Point Clouds
+	PCid = []  ## Point Clouds ID for each planning context
+	Context = []   ## Planning Context, current state, goal state
+	Targets = []   ## Targets for behavior cloning
+
+	for i in range(0,N):
+		#load obstacle point cloud
+		temp=o3d.io.read_point_cloud('../trajectory_data/obs_cloud/map_'+str(i+1)+'.ply')
+		temp=np.asarray(temp.points)
+		temp.astype('float32')
+		# downsample to 2000 points, choose randomly
+		temp_ind = np.random.choice(temp.shape[0], 2000, replace=False)
+		temp = temp[temp_ind]
+		temp = temp.flatten()
+		PC.append(temp)
+		for j in range(0,NP):
+			fname='../trajectory_data/env_{:06d}/path_{:d}.p'.format(i+1,j)
+			if os.path.isfile(fname):
+				path=pickle.load(open(fname,'rb'), encoding='latin1')['path']
+				for k in range(0,len(path)):
+					paths[i][j][k]=(path[k] - origins)/ranges # normalize the path
+		for j in range(0,NP):
+			if path_lengths[i][j]>0:				
+				for m in range(0, path_lengths[i][j]-1):
+					PCid.append(i)
+					context = np.zeros((14), dtype=np.float32)
+					context[0:7] = paths[i][j][m]
+					context[7:14] = paths[i][j][path_lengths[i][j]-1]
+					Context.append(context)
+					Targets.append(paths[i][j][m+1])
+			
+	data=list(zip(PCid, Context,Targets))
+	random.shuffle(data)	
+	PCid, Context, Targets=list(zip(*data))
+	return 	np.asarray(PC), np.asarray(PCid), np.asarray(Context), np.asarray(Targets) 
+
 def load_dataset_JM(N=1000, NP=10):
 	import open3d as o3d
 	Q = Encoder_JM()
@@ -199,6 +257,9 @@ def load_dataset_JM(N=1000, NP=10):
 
 
 	import pickle
+	normalization_data = pickle.load(open('../trajectory_data/env_1000_range.pkl','rb'))
+	ranges = normalization_data['range']
+	origins = normalization_data['mid']
 	## calculating length of the longest trajectory
 	max_length=0
 	path_lengths=np.zeros((N,NP),dtype=np.int8)
@@ -221,7 +282,7 @@ def load_dataset_JM(N=1000, NP=10):
 			if os.path.isfile(fname):
 				path=pickle.load(open(fname,'rb'), encoding='latin1')['path']
 				for k in range(0,len(path)):
-					paths[i][j][k]=path[k]
+					paths[i][j][k]=(path[k] - origins)/ranges # normalize the path
 	
 					
 

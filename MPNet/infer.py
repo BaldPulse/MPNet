@@ -12,35 +12,39 @@ import time
 
 # Load trained model for path generation
 mlp = MLP(42, 7) 
-mlp.load_state_dict(torch.load('models/mlp_100_4000_PReLU_ae_dd_final.pkl'))
+mlp.load_state_dict(torch.load('models/mlp_100_4000_PReLU_ae_dd100.pkl'))
 
 if torch.cuda.is_available():
     mlp.cuda()
 
 #load test dataset
 dataset,targets= load_dataset_JM() 
-
+criterion = nn.MSELoss()
 # run 10 different tests
 for i in range(10):
-    input = dataset[i]
+    input = dataset[i:i+1]
     input = torch.from_numpy(input)
     input = input.cuda()
     input = Variable(input)
-    target = targets[i]
-    output = mlp(input).cpu().data.numpy()
+    target = targets[i:i+1]
+    target = torch.from_numpy(target)
+    target = target.cuda()
+    target = Variable(target)
+    output = mlp(input)
+    loss = criterion(output, target).cpu().data.numpy()
     print("target: ", target)
     print("output: ", output)
-    print("difference: ", np.abs(target - output))
+    print("loss: ", np.abs(loss))
 
-import open3d as o3d
+# import open3d as o3d
 
-for i in range(10):
-    input = dataset[i]
-    # randomly change the last 14 dimensions of the input
-    input[28:] = np.random.rand(14)
-    input = torch.from_numpy(input)
-    input = input.cuda()
-    input = Variable(input)
-    output = mlp(input).cpu().data.numpy()
-    print("output: ", output)
+# for i in range(10):
+#     input = dataset[i]
+#     # randomly change the last 14 dimensions of the input
+#     input[28:] = np.random.rand(14)
+#     input = torch.from_numpy(input)
+#     input = input.cuda()
+#     input = Variable(input)
+#     output = mlp(input).cpu().data.numpy()
+#     print("output: ", output)
     

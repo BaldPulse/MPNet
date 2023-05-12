@@ -12,7 +12,7 @@ import time
 
 # Load trained model for path generation
 mlp = MLP(42, 7) 
-mlp.load_state_dict(torch.load('models/mlp_100_4000_PReLU_ae_dd100.pkl'))
+mlp.load_state_dict(torch.load('models/mlp_100_4000_PReLU_ae_dd_final.pkl'))
 
 if torch.cuda.is_available():
     mlp.cuda()
@@ -34,6 +34,7 @@ for i in range(10):
     loss = criterion(output, target).cpu().data.numpy()
     print("target: ", target)
     print("output: ", output)
+    print((output - target)**2)
     print("loss: ", np.abs(loss))
 
 # import open3d as o3d
